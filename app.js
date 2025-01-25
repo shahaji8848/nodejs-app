@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 
 app.get('/', (req, res) => {
-    res.send('Hello from Node.js running on localhost!');
+    res.send('Hello from Node.js running on K8!');
 });
 
 const port = process.env.PORT || 3000;
