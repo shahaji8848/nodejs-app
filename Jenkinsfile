@@ -26,7 +26,7 @@ pipeline {
                         eval \$(minikube docker-env)
 
                         # Build Docker image inside Minikube's Docker daemon
-                        docker build -t ${IMAGE_TAG} .
+                        docker build --no-cache -t ${IMAGE_TAG} .
 
                         # Update deployment.yaml to use the new image tag
                         sed -i 's|image: nodejs-app.*|image: ${IMAGE_TAG}|' deployment.yaml
