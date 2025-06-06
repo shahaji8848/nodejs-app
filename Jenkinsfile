@@ -1,53 +1,54 @@
 pipeline {
     agent any
     environment {
-        IMAGE_NAME = 'nodejs-app'
-        BUILD_TAG = "${BUILD_NUMBER}"
-        FULL_IMAGE_TAG = "${IMAGE_NAME}:${BUILD_TAG}"
-        KUBECONFIG = '/var/lib/jenkins/.kube/config'  // Adjust if needed
+        DOCKER_IMAGE = 'nodejs-app'  // Base name of the Docker image
+        IMAGE_TAG = "nodejs-app:${BUILD_NUMBER}"  // Tag using Jenkins build number
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'  // Path to Minikube config
     }
     stages {
-        stage('Clone Repository') {
+        stage('Clone Repository from GitHub') {
             steps {
-                git 'https://github.com/kshahaji04/nodejs-app.git'
+                script {
+                    // Clone the GitHub repository to Jenkins workspace
+                    git 'https://github.com/kshahaji04/nodejs-app.git'
+                }
+            }
+        }
+
+        stage('Set Minikube Docker Environment') {
+            steps {
+                script {
+                    // Set Docker environment to Minikube's Docker daemon so images are built inside Minikube
+                    sh 'eval $(minikube docker-env)'
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                dir('') {
-                    sh '''
-                    # Set Docker env to Minikube's Docker daemon for this shell session
-                    eval $(minikube docker-env)
-                    docker build -t ${FULL_IMAGE_TAG} .
-                    docker images | grep ${IMAGE_NAME}
-                    '''
+                script {
+                    // Build the Docker image inside Minikube Docker environment
+                    dir('') {
+                        sh "docker build -t ${IMAGE_TAG} ."
+                    }
                 }
             }
         }
 
-        stage('Update Deployment Manifest') {
+        stage('Deploy to Minikube') {
             steps {
-                // Update image tag
-                sh "sed -i 's|image: nodejs-app.*|image: ${FULL_IMAGE_TAG}|' deployment.yaml"
-                // Add or update imagePullPolicy: Never below image line to avoid ErrImageNeverPull
-                sh '''
-                if grep -q "imagePullPolicy" deployment.yaml; then
-                    sed -i '/imagePullPolicy/c\\    imagePullPolicy: Never' deployment.yaml
-                else
-                    sed -i '/image:/a\\    imagePullPolicy: Never' deployment.yaml
-                fi
-                '''
-            }
-        }
+                script {
+                    // Use sed to replace the image line with the correct image tag
+                    sh "sed -i 's|image: nodejs-app.*|image: ${IMAGE_TAG}|' deployment.yaml"
 
-        stage('Deploy to Kubernetes') {
-            steps {
-                sh "kubectl --kubeconfig=${KUBECONFIG} apply -f deployment.yaml"
-                sh "kubectl --kubeconfig=${KUBECONFIG} apply -f service.yaml"
-                sh "kubectl --kubeconfig=${KUBECONFIG} rollout status deployment/${IMAGE_NAME} --timeout=120s"
-                sh "kubectl --kubeconfig=${KUBECONFIG} get pods"
-                sh "kubectl --kubeconfig=${KUBECONFIG} get svc"
+                    // Apply updated deployment and service yaml files
+                    sh "kubectl --kubeconfig=${KUBECONFIG} apply -f deployment.yaml"
+                    sh "kubectl --kubeconfig=${KUBECONFIG} apply -f service.yaml"
+
+                    // Verify pods and services
+                    sh "kubectl --kubeconfig=${KUBECONFIG} get pods"
+                    sh "kubectl --kubeconfig=${KUBECONFIG} get svc"
+                }
             }
         }
     }
