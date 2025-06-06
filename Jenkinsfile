@@ -1,44 +1,48 @@
 pipeline {
     agent any
     environment {
-        DOCKER_IMAGE = 'nodejs-app'  // Base name of the Docker image
-        IMAGE_TAG = "nodejs-app:${BUILD_NUMBER}"  // Tag using Jenkins build number
-        KUBECONFIG = '/var/lib/jenkins/.kube/config'  // Path to Minikube config
+        DOCKER_IMAGE = 'nodejs-app'                    // Base name of the Docker image
+        IMAGE_TAG = "nodejs-app:${BUILD_NUMBER}"       // Tag using Jenkins build number
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'   // Path to Minikube config
     }
     stages {
-        stage('Clone Repository from GitHub') {
+        stage('Clean Workspace and Clone Latest Code') {
             steps {
                 script {
-                    git 'https://github.com/kshahaji04/nodejs-app.git'
+                    // Clean workspace to avoid old files
+                    sh 'rm -rf *'
+                    // Clone fresh copy of the repo
+                    git branch: 'main', url: 'https://github.com/kshahaji04/nodejs-app.git'
                 }
             }
         }
 
-        stage('Build and Deploy to Minikube') {
+        stage('Set Minikube Docker Environment and Build Image') {
             steps {
                 script {
                     sh """
-                        # Set Minikube Docker environment for this shell session
+                        # Set Docker environment to Minikube's Docker daemon
                         eval \$(minikube docker-env)
 
-                        # Build Docker image inside Minikube's Docker daemon
+                        # Build Docker image inside Minikube docker environment
                         docker build -t ${IMAGE_TAG} .
+                    """
+                }
+            }
+        }
 
+        stage('Deploy to Minikube') {
+            steps {
+                script {
+                    sh """
                         # Update deployment.yaml to use the new image tag
-                        sed -i "s|image: nodejs-app.*|image: ${IMAGE_TAG}|" deployment.yaml
+                        sed -i 's|image: nodejs-app.*|image: ${IMAGE_TAG}|' deployment.yaml
 
-                        # Show updated image line for verification
-                        echo "Updated image line in deployment.yaml:"
-                        grep "image:" deployment.yaml
-
-                        # Apply updated deployment and service to Minikube cluster
+                        # Apply deployment and service yaml files
                         kubectl --kubeconfig=${KUBECONFIG} apply -f deployment.yaml
                         kubectl --kubeconfig=${KUBECONFIG} apply -f service.yaml
 
-                        # Force rollout restart to apply new image
-                        kubectl rollout restart deployment nodejs-app --kubeconfig=${KUBECONFIG}
-
-                        # Show pods and services for verification
+                        # Verify pods and services
                         kubectl --kubeconfig=${KUBECONFIG} get pods
                         kubectl --kubeconfig=${KUBECONFIG} get svc
                     """
