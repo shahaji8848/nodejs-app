@@ -1,34 +1,29 @@
 pipeline {
     agent any
     environment {
-        DOCKER_IMAGE = 'nodejs-app'
-        IMAGE_TAG = "nodejs-app:${BUILD_NUMBER}"
-        KUBECONFIG = '/var/lib/jenkins/.kube/config'
+        DOCKER_IMAGE = 'nodejs-app'  // Base name of the Docker image
+        IMAGE_TAG = "nodejs-app:${BUILD_NUMBER}"  // Tag using Jenkins build number
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'  // Path to Minikube config
     }
     stages {
         stage('Clone Repository from GitHub') {
             steps {
-                git 'https://github.com/kshahaji04/nodejs-app.git'
-            }
-        }
-
-        stage('Configure Minikube Docker Env') {
-            steps {
                 script {
-                    // Export Minikube Docker environment variables into a shell script
-                    sh 'minikube docker-env > minikube_docker_env.sh'
+                    // Clone the GitHub repository to Jenkins workspace
+                    git 'https://github.com/kshahaji04/nodejs-app.git'
                 }
             }
         }
 
-        stage('Build Docker Image in Minikube') {
+        stage('Build Docker Image') {
             steps {
                 script {
-                    // Source the docker-env before building image
-                    sh '''
-                        source minikube_docker_env.sh
-                        docker build -t ${IMAGE_TAG} .
-                    '''
+                    // Navigate to the project directory and build the Docker image
+                    dir('') {
+                        sh "docker build -t ${IMAGE_TAG} ."
+                        // Push image into Minikube Docker cache
+                        sh "minikube image load ${IMAGE_TAG}"
+                    }
                 }
             }
         }
@@ -36,14 +31,16 @@ pipeline {
         stage('Deploy to Minikube') {
             steps {
                 script {
-                    // Update deployment with new image tag
-                    sh '''
-                        sed -i 's|image: nodejs-app|image: nodejs-app:${BUILD_NUMBER}|' deployment.yaml
-                        kubectl apply -f deployment.yaml
-                        kubectl apply -f service.yaml
-                        kubectl get pods
-                        kubectl get svc
-                    '''
+                    // Update the image tag in deployment.yaml
+                    sh "sed -i 's|image: nodejs-app|image: ${IMAGE_TAG}|' /var/lib/jenkins/workspace/nodejs-app/deployment.yaml"
+
+                    // Apply updated Deployment and Service configs
+                    sh 'kubectl apply -f /var/lib/jenkins/workspace/nodejs-app/deployment.yaml'
+                    sh 'kubectl apply -f /var/lib/jenkins/workspace/nodejs-app/service.yaml'
+
+                    // Get deployment status
+                    sh 'kubectl get pods'
+                    sh 'kubectl get svc'
                 }
             }
         }
