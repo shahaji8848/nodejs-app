@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 
 app.get('/', (req, res) => {
-    res.send('Hello from Node.js running on Minikube!123');
+    res.send('Hello from Node.js running on Minikube! - DEMOSK');
 });
 
 const port = process.env.PORT || 3000;
