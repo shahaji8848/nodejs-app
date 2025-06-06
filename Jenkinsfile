@@ -25,11 +25,18 @@ pipeline {
                         docker build -t ${IMAGE_TAG} .
 
                         # Update deployment.yaml to use the new image tag
-                        sed -i 's|image: nodejs-app.*|image: ${IMAGE_TAG}|' deployment.yaml
+                        sed -i "s|image: nodejs-app.*|image: ${IMAGE_TAG}|" deployment.yaml
+
+                        # Show updated image line for verification
+                        echo "Updated image line in deployment.yaml:"
+                        grep "image:" deployment.yaml
 
                         # Apply updated deployment and service to Minikube cluster
                         kubectl --kubeconfig=${KUBECONFIG} apply -f deployment.yaml
                         kubectl --kubeconfig=${KUBECONFIG} apply -f service.yaml
+
+                        # Force rollout restart to apply new image
+                        kubectl rollout restart deployment nodejs-app --kubeconfig=${KUBECONFIG}
 
                         # Show pods and services for verification
                         kubectl --kubeconfig=${KUBECONFIG} get pods
