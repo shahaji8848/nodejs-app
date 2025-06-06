@@ -4,35 +4,32 @@ pipeline {
         DOCKER_IMAGE = 'nodejs-app'
         IMAGE_TAG = "nodejs-app:${BUILD_NUMBER}"
         KUBECONFIG = '/var/lib/jenkins/.kube/config'
+        GIT_BRANCH = 'master'  // explicitly set your branch here
     }
     stages {
-        stage('Clean workspace') {
+        stage('Clean Workspace') {
             steps {
-                cleanWs()  // Clean workspace plugin required
+                deleteDir()  // clean workspace before build
             }
         }
-        stage('Checkout latest code') {
+
+        stage('Checkout Code') {
             steps {
-                checkout([$class: 'GitSCM', 
-                    branches: [[name: 'refs/heads/master']], 
-                    userRemoteConfigs: [[url: 'https://github.com/kshahaji04/nodejs-app.git']]
-                ])
-                // Debug: Show latest commit and app.js content
-                sh 'git log -1 --oneline'
-                sh 'cat app.js'
+                git branch: "${GIT_BRANCH}", url: 'https://github.com/shahaji8848/nodejs-app.git'
             }
         }
-        stage('Build and Deploy to Minikube') {
+
+        stage('Build and Deploy') {
             steps {
                 script {
                     sh """
-                        eval \$(minikube docker-env)
-                        docker build --no-cache -t ${IMAGE_TAG} .
-                        sed -i 's|image: nodejs-app.*|image: ${IMAGE_TAG}|' deployment.yaml
-                        kubectl --kubeconfig=${KUBECONFIG} apply -f deployment.yaml
-                        kubectl --kubeconfig=${KUBECONFIG} apply -f service.yaml
-                        kubectl --kubeconfig=${KUBECONFIG} get pods
-                        kubectl --kubeconfig=${KUBECONFIG} get svc
+                    eval \$(minikube docker-env)
+                    docker build --no-cache -t ${IMAGE_TAG} .
+                    sed -i 's|image: nodejs-app.*|image: ${IMAGE_TAG}|' deployment.yaml
+                    kubectl --kubeconfig=${KUBECONFIG} apply -f deployment.yaml
+                    kubectl --kubeconfig=${KUBECONFIG} apply -f service.yaml
+                    kubectl --kubeconfig=${KUBECONFIG} get pods
+                    kubectl --kubeconfig=${KUBECONFIG} get svc
                     """
                 }
             }
