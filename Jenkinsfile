@@ -9,45 +9,32 @@ pipeline {
         stage('Clone Repository from GitHub') {
             steps {
                 script {
-                    // Clone the GitHub repository to Jenkins workspace
                     git 'https://github.com/kshahaji04/nodejs-app.git'
                 }
             }
         }
 
-        stage('Set Minikube Docker Environment') {
+        stage('Build and Deploy to Minikube') {
             steps {
                 script {
-                    // Set Docker environment to Minikube's Docker daemon so images are built inside Minikube
-                    sh 'eval $(minikube docker-env)'
-                }
-            }
-        }
+                    sh """
+                        # Set Minikube Docker environment for this shell session
+                        eval \$(minikube docker-env)
 
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    // Build the Docker image inside Minikube Docker environment
-                    dir('') {
-                        sh "docker build -t ${IMAGE_TAG} ."
-                    }
-                }
-            }
-        }
+                        # Build Docker image inside Minikube's Docker daemon
+                        docker build -t ${IMAGE_TAG} .
 
-        stage('Deploy to Minikube') {
-            steps {
-                script {
-                    // Use sed to replace the image line with the correct image tag
-                    sh "sed -i 's|image: nodejs-app.*|image: ${IMAGE_TAG}|' deployment.yaml"
-                    
-                    // Apply updated deployment and service yaml files
-                    sh "kubectl --kubeconfig=${KUBECONFIG} apply -f deployment.yaml"
-                    sh "kubectl --kubeconfig=${KUBECONFIG} apply -f service.yaml"
+                        # Update deployment.yaml to use the new image tag
+                        sed -i 's|image: nodejs-app.*|image: ${IMAGE_TAG}|' deployment.yaml
 
-                    // Verify pods and services
-                    sh "kubectl --kubeconfig=${KUBECONFIG} get pods"
-                    sh "kubectl --kubeconfig=${KUBECONFIG} get svc"
+                        # Apply updated deployment and service to Minikube cluster
+                        kubectl --kubeconfig=${KUBECONFIG} apply -f deployment.yaml
+                        kubectl --kubeconfig=${KUBECONFIG} apply -f service.yaml
+
+                        # Show pods and services for verification
+                        kubectl --kubeconfig=${KUBECONFIG} get pods
+                        kubectl --kubeconfig=${KUBECONFIG} get svc
+                    """
                 }
             }
         }
