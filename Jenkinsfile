@@ -4,10 +4,10 @@ pipeline {
         IMAGE_NAME = 'nodejs-app'
         BUILD_TAG = "${BUILD_NUMBER}"
         FULL_IMAGE_TAG = "${IMAGE_NAME}:${BUILD_TAG}"
-        KUBECONFIG = '/var/lib/jenkins/.kube/config'
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'  // Adjust if needed
     }
     stages {
-        stage('Clone Repository from GitHub') {
+        stage('Clone Repository') {
             steps {
                 git 'https://github.com/kshahaji04/nodejs-app.git'
             }
@@ -15,44 +15,38 @@ pipeline {
 
         stage('Set Minikube Docker Environment') {
             steps {
-                script {
-                    // Load Minikube docker environment variables so docker commands build inside minikube VM
-                    sh '''
-                    eval $(minikube docker-env)
-                    '''
-                }
+                // Load Minikube Docker environment variables so docker commands use Minikube's Docker daemon
+                sh '''
+                eval $(minikube docker-env)
+                '''
             }
         }
 
-        stage('Build Docker Image inside Minikube') {
+        stage('Build Docker Image') {
             steps {
                 dir('') {
-                    // Build Docker image with tag
+                    // Build the Docker image inside Minikube Docker daemon
                     sh "docker build -t ${FULL_IMAGE_TAG} ."
                 }
             }
         }
 
-        stage('Update Deployment Image') {
+        stage('Update Deployment Manifest') {
             steps {
-                script {
-                    // Replace placeholder in deployment.yaml with the full image tag
-                    sh "sed -i 's|image: nodejs-app.*|image: ${FULL_IMAGE_TAG}|' deployment.yaml"
-                }
+                // Replace the image line in deployment.yaml with the new image tag
+                sh "sed -i 's|image: nodejs-app.*|image: ${FULL_IMAGE_TAG}|' deployment.yaml"
             }
         }
 
-        stage('Deploy to Minikube') {
+        stage('Deploy to Kubernetes') {
             steps {
-                script {
-                    // Apply updated Kubernetes manifests
-                    sh "kubectl apply -f deployment.yaml"
-                    sh "kubectl apply -f service.yaml"
+                // Apply updated deployment and service manifests
+                sh "kubectl --kubeconfig=${KUBECONFIG} apply -f deployment.yaml"
+                sh "kubectl --kubeconfig=${KUBECONFIG} apply -f service.yaml"
 
-                    // Show pods and services status
-                    sh "kubectl get pods"
-                    sh "kubectl get svc"
-                }
+                // Show pods and services for verification
+                sh "kubectl --kubeconfig=${KUBECONFIG} get pods"
+                sh "kubectl --kubeconfig=${KUBECONFIG} get svc"
             }
         }
     }
