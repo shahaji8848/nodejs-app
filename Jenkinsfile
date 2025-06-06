@@ -39,8 +39,8 @@ pipeline {
             steps {
                 script {
                     // Use sed to replace the image line with the correct image tag
-                    sh "sed -i 's|image: nodejs-app.*|image: ${IMAGE_TAG}|' deployment.yaml"
-
+                    sh "sed -i 'sed -i 's|image: nodejs-app.*|image: nodejs-app:<tag>|' deployment.yaml"
+                    
                     // Apply updated deployment and service yaml files
                     sh "kubectl --kubeconfig=${KUBECONFIG} apply -f deployment.yaml"
                     sh "kubectl --kubeconfig=${KUBECONFIG} apply -f service.yaml"
